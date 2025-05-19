@@ -1,275 +1,382 @@
 # src/gui/playlists.py
 """
-Ventanas relacionadas con Playlists:
+Ventanas relacionadas con Playlists en wxPython, versión accesible:
 * Ver playlists
 * Crear playlist
 * Contenido de playlist
 * Agregar artista/podcast a playlist
-* Eliminar playlists
+* Eliminar playlists (con CheckListBox)
 * Vaciar playlists
 """
-from __future__ import annotations
-import tkinter as tk
-from tkinter import ttk, messagebox
+
+import wx
 from spotipy import Spotify
 from ..utils.spotify_utils import (
-    obtener_playlists_usuario,
-    crear_playlist,
-    obtener_contenido_playlist,
-    eliminar_items_playlist,
-    obtener_canciones_artista,
-    obtener_episodios_podcast_sencillo,
-    agregar_canciones_a_playlist,
+	obtener_playlists_usuario,
+	crear_playlist,
+	obtener_contenido_playlist,
+	eliminar_items_playlist,
+	obtener_canciones_artista,
+	obtener_episodios_podcast_sencillo,
+	agregar_canciones_a_playlist,
 )
 
-def ventana_ver_playlists(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Ver Playlists")
-    ven.geometry("600x400")
+def ventana_ver_playlists(sp: Spotify, parent: wx.Window):
+	ven = wx.Frame(parent, title="Ver Playlists", size=(600, 400))
+	panel = wx.Panel(ven)
+	sizer = wx.BoxSizer(wx.VERTICAL)
+	panel.SetSizer(sizer)
 
-    cols = ("ID", "Nombre", "Tracks")
-    tree = ttk.Treeview(ven, columns=cols, show="headings")
-    for c in cols:
-        tree.heading(c, text=c)
-    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+	cols = ("ID", "Nombre", "Tracks")
+	tree = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+	for i, c in enumerate(cols):
+		tree.InsertColumn(i, c)
+	tree.SetMinSize((580, 300))
+	tree.SetName("Tabla de playlists")
+	sizer.Add(tree, 1, wx.ALL | wx.EXPAND, 10)
 
-    scroll = ttk.Scrollbar(ven, orient="vertical", command=tree.yview)
-    tree.configure(yscrollcommand=scroll.set)
-    scroll.pack(side=tk.RIGHT, fill=tk.Y)
+	for pid, nom, tot in obtener_playlists_usuario(sp):
+		idx = tree.InsertItem(tree.GetItemCount(), pid)
+		tree.SetItem(idx, 1, nom)
+		tree.SetItem(idx, 2, str(tot))
 
-    for pid, nom, tot in obtener_playlists_usuario(sp):
-        tree.insert("", tk.END, values=(pid, nom, tot))
+	btn_cancelar = wx.Button(panel, label="&Cancelar")
+	btn_cancelar.Bind(wx.EVT_BUTTON, lambda evt: ven.Destroy())
+	btn_cancelar.SetMinSize((110, 44))
+	sizer.Add(btn_cancelar, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
 
-def ventana_crear_playlist(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Crear Playlist")
-    ven.geometry("300x150")
+	ven.Centre()
+	ven.Show()
 
-    tk.Label(ven, text="Nombre de la Playlist:").pack(pady=5)
-    entry = tk.Entry(ven, width=30)
-    entry.pack(pady=5)
+def ventana_crear_playlist(sp: Spotify, parent: wx.Window):
+	ven = wx.Frame(parent, title="Crear Playlist", size=(340, 180))
+	panel = wx.Panel(ven)
+	sizer = wx.BoxSizer(wx.VERTICAL)
+	panel.SetSizer(sizer)
 
-    def crear():
-        nombre = entry.get().strip()
-        if not nombre:
-            messagebox.showwarning("Atención", "Ingresa un nombre")
-            return
-        pid = crear_playlist(sp, nombre)
-        messagebox.showinfo("Completado", f"Playlist creada con ID: {pid}")
-        ven.destroy()
+	label = wx.StaticText(panel, label="Nombre de la Playlist:")
+	sizer.Add(label, 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
 
-    tk.Button(ven, text="Crear", command=crear).pack(pady=5)
+	entry = wx.TextCtrl(panel, size=(220, 44))
+	sizer.Add(entry, 0, wx.ALL, 5)
 
-def ventana_contenido_playlist(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Contenido de Playlist")
-    ven.geometry("650x450")
+	def crear(evt):
+		nombre = entry.GetValue().strip()
+		if not nombre:
+			wx.MessageBox("Ingresa un nombre", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		pid = crear_playlist(sp, nombre)
+		wx.MessageBox(f"Playlist creada con ID: {pid}", "Completado", wx.OK | wx.ICON_INFORMATION)
+		ven.Destroy()
 
-    tk.Label(ven, text="ID de la playlist:").pack(pady=5)
-    entry_pid = tk.Entry(ven, width=40)
-    entry_pid.pack()
+	btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+	btn_crear = wx.Button(panel, label="&Crear")
+	btn_crear.Bind(wx.EVT_BUTTON, crear)
+	btn_crear.SetMinSize((110, 44))
+	btn_sizer.Add(btn_crear, 0, wx.ALL, 5)
 
-    frame_tbl = ttk.Frame(ven)
-    frame_tbl.pack(fill=tk.BOTH, expand=True)
+	btn_cancelar = wx.Button(panel, label="&Cancelar")
+	btn_cancelar.Bind(wx.EVT_BUTTON, lambda evt: ven.Destroy())
+	btn_cancelar.SetMinSize((110, 44))
+	btn_sizer.Add(btn_cancelar, 0, wx.ALL, 5)
 
-    cols = ("TrackID", "Título", "Artista/Show")
-    tree = ttk.Treeview(frame_tbl, columns=cols, show="headings")
-    for c in cols:
-        tree.heading(c, text=c)
-    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+	sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 8)
 
-    scroll = ttk.Scrollbar(frame_tbl, orient="vertical", command=tree.yview)
-    tree.configure(yscrollcommand=scroll.set)
-    scroll.pack(side=tk.RIGHT, fill=tk.Y)
+	ven.Centre()
+	ven.Show()
 
-    def cargar():
-        tree.delete(*tree.get_children())
-        pid = entry_pid.get().strip()
-        if not pid:
-            messagebox.showwarning("Atención", "Debes ingresar el ID de la playlist.")
-            return
-        for tid, nom, art in obtener_contenido_playlist(sp, pid):
-            tree.insert("", tk.END, values=(tid, nom, art))
+def ventana_contenido_playlist(sp: Spotify, parent: wx.Window):
+	ven = wx.Frame(parent, title="Contenido de Playlist", size=(680, 480))
+	panel = wx.Panel(ven)
+	sizer = wx.BoxSizer(wx.VERTICAL)
+	panel.SetSizer(sizer)
 
-    def eliminar_sel():
-        pid = entry_pid.get().strip()
-        if not pid:
-            messagebox.showwarning("Atención", "Ingresa el ID primero.")
-            return
-        sel = tree.selection()
-        if not sel:
-            messagebox.showwarning("Atención", "No seleccionaste nada.")
-            return
-        uris = []
-        for s in sel:
-            tid = tree.item(s, "values")[0]
-            uris += [f"spotify:track:{tid}", f"spotify:episode:{tid}"]
-        eliminar_items_playlist(sp, pid, uris)
-        cargar()
+	label = wx.StaticText(panel, label="ID de la playlist:")
+	sizer.Add(label, 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
 
-    frame_btns = tk.Frame(ven)
-    frame_btns.pack(pady=5)
-    tk.Button(frame_btns, text="Cargar Contenido", command=cargar).pack(side=tk.LEFT, padx=5)
-    tk.Button(frame_btns, text="Eliminar Seleccionados", command=eliminar_sel).pack(side=tk.LEFT, padx=5)
+	entry_pid = wx.TextCtrl(panel, size=(320, 44))
+	sizer.Add(entry_pid, 0, wx.ALL, 5)
 
-def ventana_agregar_artista_podcast(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Agregar Artista o Podcast a Playlist")
-    ven.geometry("500x300")
+	cols = ("TrackID", "Título", "Artista/Show")
+	tree = wx.ListCtrl(panel, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+	for i, c in enumerate(cols):
+		tree.InsertColumn(i, c)
+	tree.SetMinSize((610, 260))
+	tree.SetName("Contenido de playlist")
+	sizer.Add(tree, 1, wx.ALL | wx.EXPAND, 10)
 
-    tk.Label(ven, text="ID de la Playlist destino:").pack(pady=5)
-    entry_pl = tk.Entry(ven, width=40)
-    entry_pl.pack()
+	def cargar(evt=None):
+		tree.DeleteAllItems()
+		pid = entry_pid.GetValue().strip()
+		if not pid:
+			wx.MessageBox("Debes ingresar el ID de la playlist.", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		for tid, nom, art in obtener_contenido_playlist(sp, pid):
+			idx = tree.InsertItem(tree.GetItemCount(), tid)
+			tree.SetItem(idx, 1, nom)
+			tree.SetItem(idx, 2, art)
 
-    tk.Label(ven, text="ID de Artista (opcional):").pack(pady=5)
-    entry_art = tk.Entry(ven, width=40)
-    entry_art.pack()
+	def eliminar_sel(evt=None):
+		pid = entry_pid.GetValue().strip()
+		if not pid:
+			wx.MessageBox("Ingresa el ID primero.", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		idx = tree.GetFirstSelected()
+		if idx == -1:
+			wx.MessageBox("No seleccionaste nada.", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		confirm = wx.MessageBox("¿Seguro que quieres eliminar el/los ítem(s) seleccionados?", "Confirmar eliminación", wx.YES_NO | wx.ICON_QUESTION)
+		if confirm != wx.YES:
+			return
+		uris = []
+		while idx != -1:
+			tid = tree.GetItemText(idx)
+			uris.append(f"spotify:track:{tid}")
+			uris.append(f"spotify:episode:{tid}")
+			idx = tree.GetNextSelected(idx)
+		eliminar_items_playlist(sp, pid, uris)
+		cargar()
+		wx.MessageBox("Ítems eliminados correctamente.", "Eliminado", wx.OK | wx.ICON_INFORMATION)
 
-    tk.Label(ven, text="ID de Podcast (opcional):").pack(pady=5)
-    entry_pod = tk.Entry(ven, width=40)
-    entry_pod.pack()
+	btnsizer = wx.BoxSizer(wx.HORIZONTAL)
+	btn_cargar = wx.Button(panel, label="&Cargar Contenido")
+	btn_cargar.Bind(wx.EVT_BUTTON, cargar)
+	btn_cargar.SetMinSize((180, 44))
+	btnsizer.Add(btn_cargar, 0, wx.RIGHT, 10)
 
-    def agregar():
-        pid = entry_pl.get().strip()
-        if not pid:
-            messagebox.showwarning("Atención", "Falta el ID de la Playlist.")
-            return
-        aid = entry_art.get().strip()
-        podid = entry_pod.get().strip()
-        if aid:
-            tracks = obtener_canciones_artista(sp, aid)
-            if not tracks:
-                messagebox.showwarning("Info", "No hay tracks para ese artista.")
-                return
-            agregar_canciones_a_playlist(sp, pid, tracks)
-            messagebox.showinfo("Éxito", "Agregadas top tracks del artista.")
-        elif podid:
-            eps = obtener_episodios_podcast_sencillo(sp, podid)
-            if not eps:
-                messagebox.showwarning("Info", "No se encontraron episodios.")
-                return
-            from ..utils.spotify_utils import add_episodes_to_playlist as _add_eps
-            _add_eps(sp, pid, [f"spotify:episode:{e}" for e in eps])
-            messagebox.showinfo("Éxito", "Agregados episodios del podcast.")
-        else:
-            messagebox.showinfo("Atención", "No pusiste Artista ni Podcast.")
+	btn_eliminar = wx.Button(panel, label="&Eliminar Seleccionados")
+	btn_eliminar.Bind(wx.EVT_BUTTON, eliminar_sel)
+	btn_eliminar.SetMinSize((180, 44))
+	btnsizer.Add(btn_eliminar, 0, wx.LEFT, 10)
 
-    tk.Button(ven, text="Agregar", command=agregar).pack(pady=10)
+	btn_cancelar = wx.Button(panel, label="&Cancelar")
+	btn_cancelar.Bind(wx.EVT_BUTTON, lambda evt: ven.Destroy())
+	btn_cancelar.SetMinSize((110, 44))
+	btnsizer.Add(btn_cancelar, 0, wx.LEFT, 10)
 
-def ventana_eliminar_playlists(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Eliminar Playlists")
-    ven.geometry("420x500")
+	sizer.Add(btnsizer, 0, wx.ALL | wx.ALIGN_CENTER_HORIZONTAL, 5)
 
-    tk.Label(ven, text="Buscar playlists:", font=("Arial", 11)).pack(pady=(10, 0))
-    entry_buscar = tk.Entry(ven, width=40)
-    entry_buscar.pack(pady=(0, 8))
+	ven.Centre()
+	ven.Show()
 
-    pls = obtener_playlists_usuario(sp)
-    filtered_pls = list(pls)
+def ventana_agregar_artista_podcast(sp: Spotify, parent: wx.Window):
+	ven = wx.Frame(parent, title="Agregar Artista o Podcast a Playlist", size=(500, 320))
+	panel = wx.Panel(ven)
+	sizer = wx.BoxSizer(wx.VERTICAL)
+	panel.SetSizer(sizer)
 
-    frame = tk.Frame(ven)
-    frame.pack(fill=tk.BOTH, expand=True, padx=10)
-    listbox = tk.Listbox(frame, selectmode=tk.MULTIPLE)
-    listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    scroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=listbox.yview)
-    scroll.pack(side=tk.RIGHT, fill=tk.Y)
-    listbox.config(yscrollcommand=scroll.set)
+	sizer.Add(wx.StaticText(panel, label="ID de la Playlist destino:"), 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
+	entry_pl = wx.TextCtrl(panel, size=(320, 44))
+	sizer.Add(entry_pl, 0, wx.ALL, 5)
 
-    def refrescar():
-        listbox.delete(0, tk.END)
-        for pid, nombre, _ in filtered_pls:
-            listbox.insert(tk.END, f"{nombre}  ({pid[:8]}…)")
+	sizer.Add(wx.StaticText(panel, label="ID de Artista (opcional):"), 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
+	entry_art = wx.TextCtrl(panel, size=(320, 44))
+	sizer.Add(entry_art, 0, wx.ALL, 5)
 
-    def filtrar(_evt):
-        term = entry_buscar.get().strip().lower()
-        filtered_pls.clear()
-        for item in pls:
-            if term in item[1].lower():
-                filtered_pls.append(item)
-        refrescar()
+	sizer.Add(wx.StaticText(panel, label="ID de Podcast (opcional):"), 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
+	entry_pod = wx.TextCtrl(panel, size=(320, 44))
+	sizer.Add(entry_pod, 0, wx.ALL, 5)
 
-    entry_buscar.bind("<KeyRelease>", filtrar)
-    refrescar()
+	def agregar(evt):
+		pid = entry_pl.GetValue().strip()
+		if not pid:
+			wx.MessageBox("Falta el ID de la Playlist.", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		aid = entry_art.GetValue().strip()
+		podid = entry_pod.GetValue().strip()
+		if aid:
+			tracks = obtener_canciones_artista(sp, aid)
+			if not tracks:
+				wx.MessageBox("No hay tracks para ese artista.", "Info", wx.OK | wx.ICON_WARNING)
+				return
+			agregar_canciones_a_playlist(sp, pid, tracks)
+			wx.MessageBox("Agregadas top tracks del artista.", "Éxito", wx.OK | wx.ICON_INFORMATION)
+		elif podid:
+			eps = obtener_episodios_podcast_sencillo(sp, podid)
+			if not eps:
+				wx.MessageBox("No se encontraron episodios.", "Info", wx.OK | wx.ICON_WARNING)
+				return
+			from ..utils.spotify_utils import add_episodes_to_playlist as _add_eps
+			_add_eps(sp, pid, [f"spotify:episode:{e}" for e in eps])
+			wx.MessageBox("Agregados episodios del podcast.", "Éxito", wx.OK | wx.ICON_INFORMATION)
+		else:
+			wx.MessageBox("No pusiste Artista ni Podcast.", "Atención", wx.OK | wx.ICON_INFORMATION)
 
-    def confirmar_elim():
-        idxs = listbox.curselection()
-        if not idxs:
-            messagebox.showwarning("Atención", "No seleccionaste ninguna playlist.")
-            return
-        seleccion = [filtered_pls[i] for i in idxs]
-        nombres = "\n".join(f"• {n}" for _, n, _ in seleccion)
-        if not messagebox.askyesno("Confirmar eliminación", f"Vas a eliminar estas playlists:\n{nombres}\n\n¿Continuar?"):
-            return
-        errores = []
-        for pid, nombre, _ in seleccion:
-            try:
-                sp.current_user_unfollow_playlist(pid)
-            except Exception as e:
-                errores.append(f"{nombre}: {e}")
-        if errores:
-            messagebox.showerror("Errores", "Algunas no se pudieron eliminar:\n" + "\n".join(errores))
-        else:
-            messagebox.showinfo("¡Listo!", "Las playlists seleccionadas han sido eliminadas.")
-        ven.destroy()
+	btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+	btn = wx.Button(panel, label="&Agregar")
+	btn.Bind(wx.EVT_BUTTON, agregar)
+	btn.SetMinSize((120, 44))
+	btn_sizer.Add(btn, 0, wx.ALL, 5)
 
-    tk.Button(ven, text="Eliminar seleccionadas", command=confirmar_elim).pack(pady=10)
+	btn_cancelar = wx.Button(panel, label="&Cancelar")
+	btn_cancelar.Bind(wx.EVT_BUTTON, lambda evt: ven.Destroy())
+	btn_cancelar.SetMinSize((120, 44))
+	btn_sizer.Add(btn_cancelar, 0, wx.ALL, 5)
 
-def ventana_vaciar_playlists(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Vaciar Playlists")
-    ven.geometry("420x500")
+	sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.TOP, 8)
 
-    tk.Label(ven, text="Buscar playlists:", font=("Arial", 11)).pack(pady=(10, 0))
-    entry_buscar = tk.Entry(ven, width=40)
-    entry_buscar.pack(pady=(0, 8))
+	ven.Centre()
+	ven.Show()
 
-    todas = obtener_playlists_usuario(sp)
-    mostradas = list(todas)
+def ventana_eliminar_playlists(sp: Spotify, parent: wx.Window):
+	ven = wx.Frame(parent, title="Eliminar Playlists", size=(440, 520))
+	panel = wx.Panel(ven)
+	sizer = wx.BoxSizer(wx.VERTICAL)
+	panel.SetSizer(sizer)
 
-    frame = tk.Frame(ven)
-    frame.pack(fill=tk.BOTH, expand=True, padx=10)
-    listbox = tk.Listbox(frame, selectmode=tk.MULTIPLE)
-    listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    scroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=listbox.yview)
-    scroll.pack(side=tk.RIGHT, fill=tk.Y)
-    listbox.config(yscrollcommand=scroll.set)
+	sizer.Add(wx.StaticText(panel, label="Buscar playlists:"), 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
+	entry_buscar = wx.TextCtrl(panel, size=(280, 44))
+	sizer.Add(entry_buscar, 0, wx.ALL, 8)
 
-    def refrescar():
-        listbox.delete(0, tk.END)
-        for pid, nombre, _ in mostradas:
-            listbox.insert(tk.END, f"{nombre}  ({pid[:8]}…)")
+	pls = list(obtener_playlists_usuario(sp))
+	filtered_pls = list(pls)
 
-    def filtrar(_evt):
-        texto = entry_buscar.get().strip().lower()
-        mostradas.clear()
-        for item in todas:
-            if texto in item[1].lower():
-                mostradas.append(item)
-        refrescar()
+	# Contenedor de checkboxes accesibles
+	scroll = wx.ScrolledWindow(panel, style=wx.VSCROLL)
+	scroll.SetScrollRate(0, 10)
+	scroll_sizer = wx.BoxSizer(wx.VERTICAL)
+	scroll.SetSizer(scroll_sizer)
+	sizer.Add(scroll, 1, wx.ALL | wx.EXPAND, 10)
 
-    entry_buscar.bind("<KeyRelease>", filtrar)
-    refrescar()
+	checkboxes = []
 
-    def confirmar_vaciado():
-        idxs = listbox.curselection()
-        if not idxs:
-            messagebox.showwarning("Atención", "No seleccionaste ninguna playlist.")
-            return
-        seleccion = [mostradas[i] for i in idxs]
-        nombres = "\n".join(f"• {n}" for _, n, _ in seleccion)
-        if not messagebox.askyesno("Confirmar vaciado", f"Vas a vaciar estas playlists:\n{nombres}\n\n¿Continuar?"):
-            return
-        errores = []
-        for pid, nombre, _ in seleccion:
-            try:
-                sp.playlist_replace_items(pid, [])
-            except Exception as e:
-                errores.append(f"{nombre}: {e}")
-        if errores:
-            messagebox.showerror("Errores", "Errores al vaciar:\n" + "\n".join(errores))
-        else:
-            messagebox.showinfo("¡Hecho!", "Las playlists seleccionadas han quedado vacías.")
-        ven.destroy()
+	def crear_checkboxes():
+		# Borra los checkboxes existentes antes de crear nuevos
+		nonlocal checkboxes
+		for chk in checkboxes:
+			chk.Destroy()
+		checkboxes.clear()
+		for pid, nombre, _ in filtered_pls:
+			chk = wx.CheckBox(scroll, label=f"{nombre}  ({pid[:8]}…)")
+			chk.SetMinSize((390, 44))
+			scroll_sizer.Add(chk, 0, wx.ALL | wx.EXPAND, 1)
+			checkboxes.append(chk)
+		scroll.Layout()
+		scroll.FitInside()
 
-    tk.Button(ven, text="Vaciar seleccionadas", command=confirmar_vaciado).pack(pady=10)
+	def refrescar():
+		scroll_sizer.Clear(delete_windows=True)
+		crear_checkboxes()
+
+	def filtrar(evt):
+		term = entry_buscar.GetValue().strip().lower()
+		filtered_pls.clear()
+		for item in pls:
+			if term in item[1].lower():
+				filtered_pls.append(item)
+		refrescar()
+
+	entry_buscar.Bind(wx.EVT_TEXT, filtrar)
+	refrescar()
+
+	def confirmar_elim(evt):
+		seleccion = [filtered_pls[i] for i, chk in enumerate(checkboxes) if chk.IsChecked()]
+		if not seleccion:
+			wx.MessageBox("No seleccionaste ninguna playlist.", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		nombres = "\n".join(f"• {n}" for _, n, _ in seleccion)
+		if wx.MessageBox(
+			f"Vas a eliminar estas playlists:\n{nombres}\n\n¿Continuar?", "Confirmar eliminación",
+			wx.YES_NO | wx.ICON_QUESTION
+		) != wx.YES:
+			return
+		errores = []
+		for pid, nombre, _ in seleccion:
+			try:
+				sp.current_user_unfollow_playlist(pid)
+			except Exception as e:
+				errores.append(f"{nombre}: {e}")
+		if errores:
+			wx.MessageBox("Algunas no se pudieron eliminar:\n" + "\n".join(errores), "Errores", wx.OK | wx.ICON_ERROR)
+		else:
+			wx.MessageBox("Las playlists seleccionadas han sido eliminadas.", "¡Listo!", wx.OK | wx.ICON_INFORMATION)
+		ven.Destroy()
+
+	btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+	btn = wx.Button(panel, label="&Eliminar seleccionadas")
+	btn.Bind(wx.EVT_BUTTON, confirmar_elim)
+	btn.SetMinSize((180, 44))
+	btn_sizer.Add(btn, 0, wx.ALL, 5)
+
+	btn_cancelar = wx.Button(panel, label="&Cancelar")
+	btn_cancelar.Bind(wx.EVT_BUTTON, lambda evt: ven.Destroy())
+	btn_cancelar.SetMinSize((120, 44))
+	btn_sizer.Add(btn_cancelar, 0, wx.ALL, 5)
+
+	sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 8)
+
+	ven.Centre()
+	ven.Show()
+
+def ventana_vaciar_playlists(sp: Spotify, parent: wx.Window):
+	ven = wx.Frame(parent, title="Vaciar Playlists", size=(440, 520))
+	panel = wx.Panel(ven)
+	sizer = wx.BoxSizer(wx.VERTICAL)
+	panel.SetSizer(sizer)
+
+	sizer.Add(wx.StaticText(panel, label="Buscar playlists:"), 0, wx.TOP | wx.LEFT | wx.RIGHT, 10)
+	entry_buscar = wx.TextCtrl(panel, size=(280, 44))
+	sizer.Add(entry_buscar, 0, wx.ALL, 8)
+
+	todas = list(obtener_playlists_usuario(sp))
+	mostradas = list(todas)
+
+	listbox = wx.CheckListBox(panel, choices=[f"{nombre}  ({pid[:8]}…)" for pid, nombre, _ in mostradas])
+	listbox.SetMinSize((400, 320))
+	sizer.Add(listbox, 1, wx.ALL | wx.EXPAND, 10)
+
+	def refrescar():
+		listbox.Clear()
+		for pid, nombre, _ in mostradas:
+			listbox.Append(f"{nombre}  ({pid[:8]}…)")
+
+	def filtrar(evt):
+		texto = entry_buscar.GetValue().strip().lower()
+		mostradas.clear()
+		for item in todas:
+			if texto in item[1].lower():
+				mostradas.append(item)
+		refrescar()
+
+	entry_buscar.Bind(wx.EVT_TEXT, filtrar)
+	refrescar()
+
+	def confirmar_vaciado(evt):
+		idxs = [i for i, checked in enumerate(listbox.GetCheckedItems()) if checked]
+		if not idxs:
+			wx.MessageBox("No seleccionaste ninguna playlist.", "Atención", wx.OK | wx.ICON_WARNING)
+			return
+		seleccion = [mostradas[i] for i in idxs]
+		nombres = "\n".join(f"• {n}" for _, n, _ in seleccion)
+		if wx.MessageBox(
+			f"Vas a vaciar estas playlists:\n{nombres}\n\n¿Continuar?", "Confirmar vaciado",
+			wx.YES_NO | wx.ICON_QUESTION
+		) != wx.YES:
+			return
+		errores = []
+		for pid, nombre, _ in seleccion:
+			try:
+				sp.playlist_replace_items(pid, [])
+			except Exception as e:
+				errores.append(f"{nombre}: {e}")
+		if errores:
+			wx.MessageBox("Errores al vaciar:\n" + "\n".join(errores), "Errores", wx.OK | wx.ICON_ERROR)
+		else:
+			wx.MessageBox("Las playlists seleccionadas han quedado vacías.", "¡Hecho!", wx.OK | wx.ICON_INFORMATION)
+		ven.Destroy()
+
+	btn_sizer = wx.BoxSizer(wx.HORIZONTAL)
+	btn = wx.Button(panel, label="&Vaciar seleccionadas")
+	btn.Bind(wx.EVT_BUTTON, confirmar_vaciado)
+	btn.SetMinSize((180, 44))
+	btn_sizer.Add(btn, 0, wx.ALL, 5)
+
+	btn_cancelar = wx.Button(panel, label="&Cancelar")
+	btn_cancelar.Bind(wx.EVT_BUTTON, lambda evt: ven.Destroy())
+	btn_cancelar.SetMinSize((120, 44))
+	btn_sizer.Add(btn_cancelar, 0, wx.ALL, 5)
+
+	sizer.Add(btn_sizer, 0, wx.ALIGN_CENTER_HORIZONTAL | wx.BOTTOM, 8)
+
+	ven.Centre()
+	ven.Show()
