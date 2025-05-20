@@ -1,0 +1,22 @@
+# Archivos compilados de Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Entornos virtuales (por si llegas a usar uno)
+venv/
+env/
+
+# Archivos temporales
+.cache
+*.log
+*.tmp
+
+# Configs de VSCode y sistema
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Archivos de sistema
+*.swp
+*.env

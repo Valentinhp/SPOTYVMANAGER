@@ -1,8 +1,9 @@
 # src/gui/podcasts.py
+
 """
 Ventana para sincronizar podcasts con sus playlists (data_podcasts).
 """
-from __future__ import annotations
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 from spotipy import Spotify
@@ -11,20 +12,18 @@ from ..utils.spotify_utils import (
     get_playlist_items,
     add_episodes_to_playlist,
 )
-
-# Lista de pares {podcast, playlist}
-data_podcasts = [
-    {"podcast": "0u8dE1kc9CkFn8bONEq0hE", "playlist": "1MreMp1Qm4gyKZa5B2HZun"},
-    # ... completa con el resto de tu lista original ...
-]
+from ..data_podcasts import data_podcasts  # <-- ahora toma la lista externa
 
 def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
     ven = tk.Toplevel(root)
     ven.title("Sincronizar Podcasts (data_podcasts)")
     ven.geometry("520x300")
 
-    tk.Label(ven, text="Sincronizando podcasts con sus playlists…", font=("Arial", 11)).pack(pady=8)
-    prog = ttk.Progressbar(ven, orient="horizontal", length=460, mode="determinate", maximum=len(data_podcasts))
+    tk.Label(ven, text="Sincronizando podcasts con sus playlists…",
+             font=("Arial", 11)).pack(pady=8)
+    prog = ttk.Progressbar(ven, orient="horizontal",
+                           length=460, mode="determinate",
+                           maximum=len(data_podcasts))
     prog.pack(pady=5)
     lbl_estado = tk.Label(ven, text="Esperando…", anchor="w")
     lbl_estado.pack(fill=tk.X, padx=10)
@@ -41,6 +40,8 @@ def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
         prog["value"] = 0
         for idx, pair in enumerate(data_podcasts, start=1):
             pod_id, pl_id = pair["podcast"], pair["playlist"]
+
+            # Intentamos obtener nombres para mostrar estado
             try:
                 podcast_name = sp.show(pod_id, market="US")["name"]
             except:
@@ -49,9 +50,13 @@ def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
                 playlist_name = sp.playlist(pl_id, fields="name")["name"]
             except:
                 playlist_name = f"Playlist {pl_id[:8]}…"
-            lbl_estado.config(text=f"{idx}/{total}  {podcast_name} → {playlist_name}")
+
+            lbl_estado.config(
+                text=f"{idx}/{total}  {podcast_name} → {playlist_name}"
+            )
             ven.update_idletasks()
 
+            # Obtener episodios y agregarlos
             eps = get_podcast_episodes(sp, pod_id)
             if not eps:
                 log(f"❌ {podcast_name}: sin episodios o error.")
@@ -71,4 +76,5 @@ def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
         lbl_estado.config(text="¡Sincronización completa!")
         messagebox.showinfo("Terminado", "Todos los podcasts han sido sincronizados.")
 
-    tk.Button(ven, text="Iniciar sincronización", command=sincronizar).pack(pady=6)
+    tk.Button(ven, text="Iniciar sincronización", command=sincronizar) \
+        .pack(pady=6)
