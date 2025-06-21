@@ -20,7 +20,7 @@ Este proyecto es una aplicación de escritorio en Python que te ayuda a gestiona
 SPOTYVMANAGER/
 │
 ├── src/
-│ ├── main.py # Punto de entrada principal
+│ ├── app.py # Punto de entrada principal
 │ ├── auth.py # Autenticación con Spotify
 │ ├── ui/
 │ │ ├── main_window.py # Menú principal
