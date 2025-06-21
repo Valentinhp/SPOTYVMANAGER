@@ -14,14 +14,10 @@ data_podcasts = [
     {"podcast": "0Gf2ESpFrmlPiPBxBUNecl", "playlist": "5l7PQHgCmknBVsDLc0b506"},
     {"podcast": "58wsYLsa9QPrclg3cFRoG0", "playlist": "6XG0QwcWma7EqYkLNJxTUC"},
     {"podcast": "3yGOOUkNFHnCb3qgmjOpC9", "playlist": "3HDvKTc8wutUMFss0M9x3K"},
-    {"podcast": "3yGOOUkNFHnCb3qgmjOpC9", "playlist": "3HDvKTc8wutUMFss0M9x3K"},
     {"podcast": "468pWe8prGZQg9ISmNj0TG", "playlist": "7I0DGPZpR5ANgl5g1dWDlM"},
     {"podcast": "5aGWVedILYqaDE5h0cei8F", "playlist": "6OL7FV70KgzF0i8cJVKHfR"},
     {"podcast": "3mfevY0cUHwttpv0NwZfKj", "playlist": "2eW2vXbDljYSH6789Fb66Y"},
-     {"podcast": "0rGBS35ThfPEPj7lDfbNcW", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
+    {"podcast": "0rGBS35ThfPEPj7lDfbNcW", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
     {"podcast": "3VQwgOUOa4JoO6UWiVBPHa", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
-    {"podcast": "6OFdeY2O9ZgS4ZKgcX7iZN", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
-
-
-
+    {"podcast": "6OFdeY2O9ZgS4ZKgcX7iZN", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"}
 ]
