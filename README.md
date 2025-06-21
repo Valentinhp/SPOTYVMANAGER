@@ -22,7 +22,7 @@ SPOTYVMANAGER/
 ├── src/
 │ ├── app.py # Punto de entrada principal
 │ ├── auth.py # Autenticación con Spotify
-│ ├── ui/
+│ ├── gui/
 │ │ ├── main_window.py # Menú principal
 │ │ ├── playlists.py # Ventanas de gestión de playlists
 │ │ ├── podcasts.py # Ventana de sincronización de podcasts
