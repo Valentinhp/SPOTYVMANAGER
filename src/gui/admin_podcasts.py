@@ -1,18 +1,18 @@
+# src/gui/admin_podcasts.py
+
 """
-Ventana de administración de asignaciones Podcast <-> Playlist.
-Interfaz mejorada: temas oscuros, estilo Spotify, grid dinámico y detalles UX.
-Ahora guarda siempre los IDs, no los nombres.
+Vista de administración de asignaciones Podcast ↔ Playlist,
+integrada en la ventana principal al estilo Spotify.
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
 import os
 import importlib.util
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+import src.config as cfg
 from spotipy import Spotify
+from .common import style_toplevel
 
-# ─────────────────────────────────────────────────────────────
-# Funciones para cargar y guardar data_podcasts.py
-# ─────────────────────────────────────────────────────────────
 def cargar_asignaciones():
     base = os.path.dirname(os.path.abspath(__file__))
     ruta = os.path.abspath(os.path.join(base, "..", "data_podcasts.py"))
@@ -24,9 +24,6 @@ def cargar_asignaciones():
     return mod.data_podcasts
 
 def guardar_asignaciones(asignaciones):
-    """
-    Reescribe el archivo data_podcasts.py con la lista actual de asignaciones.
-    """
     base = os.path.dirname(os.path.abspath(__file__))
     ruta = os.path.abspath(os.path.join(base, "..", "data_podcasts.py"))
     try:
@@ -43,200 +40,170 @@ def guardar_asignaciones(asignaciones):
         messagebox.showerror("Error al guardar", f"No se pudo escribir:\n{e}")
         return False
 
-# ─────────────────────────────────────────────────────────────
-# Ventana de administración pulida
-# ─────────────────────────────────────────────────────────────
+
 class VentanaAdminPodcasts(tk.Toplevel):
     def __init__(self, parent, sp: Spotify):
         super().__init__(parent)
         self.sp = sp
-        self.title("Admin Podcast ↔ Playlist")
-        self.geometry("920x650")
-        self.configure(bg="#191414")
-        self.resizable(True, True)
 
-        # cargar datos
-        self.asignaciones = cargar_asignaciones()
-        self.selected_podcast_id = ""
-        self.selected_playlist_id = ""
+        # Estiliza Toplevel (fondo, cabecera, padding)
+        panel = style_toplevel(self, "Admin Podcasts ↔ Playlist", "920x650")
 
-        # estilos
+        # Estilos locales para entradas y tabla
         style = ttk.Style(self)
-        style.theme_use("clam")
-        style.configure("FrameBG.TFrame", background="#191414")
-        style.configure("LabelframeBG.TLabelframe",
-                        background="#191414", foreground="#1DB954",
-                        font=("Segoe UI", 11, "bold"))
-        style.configure("LabelWhite.TLabel",
-                        background="#191414", foreground="#FFFFFF")
         style.configure("Entry.TEntry",
-                        foreground="#FFFFFF", fieldbackground="#2a2a2a")
-        style.configure("Green.TButton",
-                        background="#1DB954", foreground="#FFFFFF",
-                        font=("Segoe UI", 9, "bold"))
-        style.map("Green.TButton", background=[("active", "#1ed760")])
+                        fieldbackground=cfg.BG_PANEL,
+                        foreground=cfg.TEXT_PRIMARY)
+        style.configure("Treeview",
+                        background=cfg.BG_PANEL,
+                        fieldbackground=cfg.BG_PANEL,
+                        foreground=cfg.TEXT_PRIMARY)
+        style.map("Treeview",
+                  background=[("selected", cfg.ACCENT)],
+                  foreground=[("selected", cfg.TEXT_PRIMARY)])
 
-        self._crear_widgets()
+        # Datos
+        self.asignaciones = cargar_asignaciones()
+        self.selected = {"pod": "", "pl": ""}
 
-    def _crear_widgets(self):
-        cont = ttk.Frame(self, style="FrameBG.TFrame", padding=10)
-        cont.pack(fill="both", expand=True)
+        # Construir UI
+        self._build_widgets(panel)
 
-        # --- sección buscar podcast ---
-        pod_frame = ttk.Labelframe(cont, text="1) Buscar Podcast",
-                                   style="LabelframeBG.TLabelframe", padding=8)
-        pod_frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
-        ttk.Label(pod_frame, text="Nombre:", style="LabelWhite.TLabel") \
-            .grid(row=0, column=0, sticky="w")
-        self.entry_pod = ttk.Entry(pod_frame, width=30, style="Entry.TEntry")
-        self.entry_pod.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
-        ttk.Button(pod_frame, text="Buscar", style="Green.TButton",
-                   command=self._buscar_podcast).grid(row=0, column=2, padx=5)
-        self.lb_pod = tk.Listbox(pod_frame, bg="#2a2a2a", fg="white",
-                                 selectbackground="#1DB954", height=6)
-        self.lb_pod.grid(row=1, column=0, columnspan=3,
-                         sticky="nsew", pady=(5, 0))
-        self.lb_pod.bind("<<ListboxSelect>>", self._on_select_podcast)
-        pod_frame.rowconfigure(1, weight=1)
+    def _build_widgets(self, cont: ttk.Frame):
+        cont.columnconfigure(0, weight=1, uniform="col")
+        cont.columnconfigure(1, weight=1, uniform="col")
 
-        # --- sección buscar/crear playlist ---
-        pl_frame = ttk.Labelframe(cont, text="2) Buscar / Crear Playlist",
-                                  style="LabelframeBG.TLabelframe", padding=8)
-        pl_frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
-        ttk.Label(pl_frame, text="Nombre:", style="LabelWhite.TLabel") \
-            .grid(row=0, column=0, sticky="w")
-        self.entry_pl = ttk.Entry(pl_frame, width=30, style="Entry.TEntry")
-        self.entry_pl.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
-        ttk.Button(pl_frame, text="Buscar", style="Green.TButton",
-                   command=self._buscar_playlist).grid(row=0, column=2, padx=5)
-        ttk.Button(pl_frame, text="Nueva", style="Green.TButton",
-                   command=self._crear_playlist).grid(row=0, column=3, padx=5)
-        self.lb_pl = tk.Listbox(pl_frame, bg="#2a2a2a", fg="white",
-                                selectbackground="#1DB954", height=6)
-        self.lb_pl.grid(row=1, column=0, columnspan=4,
-                        sticky="nsew", pady=(5, 0))
-        self.lb_pl.bind("<<ListboxSelect>>", self._on_select_playlist)
-        pl_frame.rowconfigure(1, weight=1)
+        # — Sección 1: Podcast — #
+        pod_card = ttk.Frame(cont, style="Card.TFrame", padding=12)
+        pod_card.grid(row=0, column=0, sticky="nsew", padx=8, pady=8)
+        ttk.Label(pod_card, text="1) Buscar Podcast", style="Subtitle.TLabel")\
+            .pack(anchor="w")
+        f1 = ttk.Frame(pod_card, style="Card.TFrame")
+        f1.pack(fill="x", pady=(6,10))
+        entry_p = ttk.Entry(f1, style="Entry.TEntry")
+        entry_p.pack(side="left", fill="x", expand=True)
+        ttk.Button(f1, text="Buscar", style="Accent.TButton",
+                   command=lambda: buscar_podcast())\
+            .pack(side="left", padx=(8,0))
+        lb_p = tk.Listbox(pod_card,
+                          bg=cfg.BG_PANEL, fg=cfg.TEXT_PRIMARY,
+                          selectbackground=cfg.ACCENT, activestyle="none",
+                          highlightthickness=0, relief="flat", height=6)
+        lb_p.pack(fill="both", expand=True)
+        lb_p.bind("<<ListboxSelect>>", lambda e: sel_podcast())
 
-        # --- botón asignar ---
+        # — Sección 2: Playlist — #
+        pl_card = ttk.Frame(cont, style="Card.TFrame", padding=12)
+        pl_card.grid(row=0, column=1, sticky="nsew", padx=8, pady=8)
+        ttk.Label(pl_card, text="2) Buscar / Crear Playlist", style="Subtitle.TLabel")\
+            .pack(anchor="w")
+        f2 = ttk.Frame(pl_card, style="Card.TFrame")
+        f2.pack(fill="x", pady=(6,10))
+        entry_pl = ttk.Entry(f2, style="Entry.TEntry")
+        entry_pl.pack(side="left", fill="x", expand=True)
+        ttk.Button(f2, text="Buscar", style="Accent.TButton",
+                   command=lambda: buscar_playlist())\
+            .pack(side="left", padx=(8,0))
+        ttk.Button(f2, text="Nueva", style="Accent.TButton",
+                   command=lambda: crear_playlist())\
+            .pack(side="left", padx=(8,0))
+        lb_pl = tk.Listbox(pl_card,
+                           bg=cfg.BG_PANEL, fg=cfg.TEXT_PRIMARY,
+                           selectbackground=cfg.ACCENT, activestyle="none",
+                           highlightthickness=0, relief="flat", height=6)
+        lb_pl.pack(fill="both", expand=True)
+        lb_pl.bind("<<ListboxSelect>>", lambda e: sel_playlist())
+
+        # Lógica de búsqueda/selección
+        def buscar_podcast():
+            q = entry_p.get().strip()
+            if not q: return
+            shows = self.sp.search(q=q, type="show", limit=8)["shows"]["items"]
+            lb_p.delete(0, "end")
+            for s in shows:
+                lb_p.insert("end", f'{s["name"]} — {s["id"]}')
+        def sel_podcast():
+            sel = lb_p.curselection()
+            if not sel: return
+            self.selected["pod"] = lb_p.get(sel[0]).rsplit("—",1)[-1].strip()
+
+        def buscar_playlist():
+            q = entry_pl.get().strip()
+            if not q: return
+            all_pl, res = [], self.sp.current_user_playlists(limit=50)
+            while True:
+                all_pl += res["items"]
+                if res["next"]:
+                    res = self.sp.next(res)
+                else:
+                    break
+            lb_pl.delete(0, "end")
+            for p in all_pl:
+                if q.lower() in p["name"].lower():
+                    lb_pl.insert("end", f'{p["name"]} — {p["id"]}')
+        def sel_playlist():
+            sel = lb_pl.curselection()
+            if not sel: return
+            self.selected["pl"] = lb_pl.get(sel[0]).rsplit("—",1)[-1].strip()
+
+        def crear_playlist():
+            nombre = simpledialog.askstring("Nueva Playlist", "Nombre:")
+            if not nombre: return
+            uid = self.sp.current_user()["id"]
+            nueva = self.sp.user_playlist_create(uid, nombre)
+            messagebox.showinfo("Éxito", f"Playlist creada: {nueva['name']}")
+            entry_pl.delete(0, "end")
+            entry_pl.insert(0, nueva["name"])
+            buscar_playlist()
+
+        # — Botón Asignar — #
         ttk.Button(cont, text="➕ Asignar Podcast → Playlist",
-                   style="Green.TButton", command=self._asignar) \
-            .grid(row=1, column=0, columnspan=2, pady=10)
+                   style="Accent.TButton", command=lambda: on_asignar())\
+            .grid(row=1, column=0, columnspan=2, pady=(4,12))
 
-        # --- tabla de asignaciones ---
-        table_frame = ttk.Frame(cont, style="FrameBG.TFrame")
-        table_frame.grid(row=2, column=0, columnspan=2,
-                         sticky="nsew", pady=(10, 0))
+        def on_asignar():
+            pod, pl = self.selected["pod"], self.selected["pl"]
+            if not pod or not pl:
+                messagebox.showinfo("Faltan datos", "Selecciona podcast y playlist.")
+                return
+            if any(x["podcast"] == pod and x["playlist"] == pl for x in self.asignaciones):
+                messagebox.showinfo("Duplicado", "Esa asignación ya existe.")
+                return
+            self.asignaciones.append({"podcast": pod, "playlist": pl})
+            refrescar_tabla()
+
+        # — Tabla de asignaciones — #
+        tbl_card = ttk.Frame(cont, style="Card.TFrame", padding=12)
+        tbl_card.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(0,12))
         cont.rowconfigure(2, weight=1)
         cols = ("Podcast ID", "Playlist ID")
-        self.tree = ttk.Treeview(table_frame, columns=cols,
-                                 show="headings", selectmode="extended")
+        tree = ttk.Treeview(tbl_card, columns=cols, show="headings", height=6)
         for c in cols:
-            self.tree.heading(c, text=c)
-            self.tree.column(c, anchor="center", width=400)
-        self.tree.pack(side="left", fill="both", expand=True)
-        sb = ttk.Scrollbar(table_frame, orient="vertical",
-                           command=self.tree.yview)
+            tree.heading(c, text=c)
+            tree.column(c, anchor="center")
+        tree.pack(side="left", fill="both", expand=True)
+        sb = ttk.Scrollbar(tbl_card, orient="vertical", command=tree.yview)
         sb.pack(side="right", fill="y")
-        self.tree.configure(yscrollcommand=sb.set)
-        self._refrescar_tabla()
+        tree.configure(yscrollcommand=sb.set)
 
-        # --- botones finales ---
-        btn_frame = ttk.Frame(cont, style="FrameBG.TFrame")
-        btn_frame.grid(row=3, column=0, columnspan=2, pady=10)
-        ttk.Button(btn_frame, text="Eliminar seleccionado",
-                   style="Green.TButton", command=self._eliminar) \
-            .grid(row=0, column=0, padx=10)
-        ttk.Button(btn_frame, text="Guardar cambios",
-                   style="Green.TButton", command=self._guardar) \
-            .grid(row=0, column=1, padx=10)
-        ttk.Button(btn_frame, text="Cerrar",
-                   style="Green.TButton", command=self.destroy) \
-            .grid(row=0, column=2, padx=10)
+        def refrescar_tabla():
+            tree.delete(*tree.get_children())
+            for a in self.asignaciones:
+                tree.insert("", "end", values=(a["podcast"], a["playlist"]))
 
-    # ──────────────────────────────────────────────────
-    def _buscar_podcast(self):
-        q = self.entry_pod.get().strip()
-        if not q: return
-        shows = self.sp.search(q=q, type="show", limit=8)["shows"]["items"]
-        self.lb_pod.delete(0, "end")
-        for i, s in enumerate(shows):
-            self.lb_pod.insert("end", f'{s["name"]} — {s["id"]}')
+        refrescar_tabla()
 
-    def _buscar_playlist(self):
-        q = self.entry_pl.get().strip()
-        if not q: return
-        all_pl, res = [], self.sp.current_user_playlists(limit=50)
-        while True:
-            all_pl += res["items"]
-            if res["next"]: res = self.sp.next(res)
-            else: break
-        self.lb_pl.delete(0, "end")
-        for p in all_pl:
-            if q.lower() in p["name"].lower():
-                self.lb_pl.insert("end", f'{p["name"]} — {p["id"]}')
+        # — Botones finales — #
+        foot = ttk.Frame(panel, style="Card.TFrame")
+        foot.pack(fill="x", pady=(0,8))
+        ttk.Button(foot, text="Eliminar seleccionado",
+                   style="Accent.TButton",
+                   command=lambda:
+                     [self.asignaciones.pop(i) for i in reversed(tree.selection()) or [None]] or refrescar_tabla()
+        ).pack(side="left", padx=8)
+        ttk.Button(foot, text="Guardar cambios",
+                   style="Accent.TButton", command=lambda: on_guardar()).pack(side="left")
 
-    def _on_select_podcast(self, event):
-        sel = self.lb_pod.curselection()
-        if sel:
-            _, id_ = self.lb_pod.get(sel[0]).rsplit("—", 1)
-            self.selected_podcast_id = id_.strip()
-            self.entry_pod.delete(0, "end")
-            self.entry_pod.insert(0, self.selected_podcast_id)
-
-    def _on_select_playlist(self, event):
-        sel = self.lb_pl.curselection()
-        if sel:
-            _, id_ = self.lb_pl.get(sel[0]).rsplit("—", 1)
-            self.selected_playlist_id = id_.strip()
-            self.entry_pl.delete(0, "end")
-            self.entry_pl.insert(0, self.selected_playlist_id)
-
-    def _crear_playlist(self):
-        nombre = simpledialog.askstring(
-            "Nueva playlist", "Nombre para la nueva playlist:")
-        if not nombre: return
-        try:
-            uid = self.sp.current_user()["id"]
-            nueva = self.sp.user_playlist_create(user=uid, name=nombre)
-            messagebox.showinfo("Éxito", f"Playlist creada: {nueva['name']}")
-            # recargar resultados
-            self.entry_pl.delete(0, "end")
-            self.entry_pl.insert(0, nueva["name"])
-            self._buscar_playlist()
-        except Exception as e:
-            messagebox.showerror("Error al crear", str(e))
-
-    def _asignar(self):
-        pod = self.selected_podcast_id
-        pl  = self.selected_playlist_id
-        if not pod or not pl:
-            messagebox.showinfo("Faltan datos",
-                                "Selecciona ambos antes de asignar.")
-            return
-        if any(x["podcast"] == pod and x["playlist"] == pl
-               for x in self.asignaciones):
-            messagebox.showinfo("Duplicado",
-                                "Esa asignación ya existe.")
-            return
-        self.asignaciones.append({"podcast": pod, "playlist": pl})
-        self._refrescar_tabla()
-
-    def _refrescar_tabla(self):
-        self.tree.delete(*self.tree.get_children())
-        for i, a in enumerate(self.asignaciones):
-            self.tree.insert("", "end", values=(
-                a["podcast"], a["playlist"]))
-
-    def _eliminar(self):
-        for sel in self.tree.selection():
-            pod, pl = self.tree.item(sel)["values"]
-            self.asignaciones = [
-                x for x in self.asignaciones
-                if not (x["podcast"] == pod and x["playlist"] == pl)
-            ]
-        self._refrescar_tabla()
-
-    def _guardar(self):
-        if guardar_asignaciones(self.asignaciones):
-            messagebox.showinfo("Guardado", "Cambios guardados correctamente.")
+        def on_guardar():
+            if guardar_asignaciones(self.asignaciones):
+                messagebox.showinfo("Guardado", "Cambios guardados correctamente.")

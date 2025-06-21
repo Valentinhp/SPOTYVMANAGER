@@ -2,24 +2,29 @@
 
 """
 VentanaGestorAutomático: busca un artista, obtiene sus canciones únicas y gestiona playlists.
-Interfaz pulida: tema oscuro, estilo Spotify, grid adaptable y componentes refinados.
+Interfaz pulida: tema oscuro, estilo Spotify, grid adaptable y scroll total.
 """
 
-import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
-from spotipy import Spotify
 import time
 import unicodedata
 import re
+import tkinter as tk
+from tkinter import ttk, messagebox, simpledialog
+from spotipy import Spotify
+
+import src.config as cfg
+
 
 class VentanaGestorAutomatico(tk.Toplevel):
     def __init__(self, parent: tk.Tk, sp: Spotify):
         super().__init__(parent)
         self.sp = sp
+
+        # Configuración de ventana
         self.title("Gestor de Playlists Automáticas")
         self.geometry("800x750")
-        self.configure(bg="#191414")
-        self.minsize(700,650)
+        self.configure(bg=cfg.BG_MAIN)
+        self.minsize(700, 650)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -31,96 +36,169 @@ class VentanaGestorAutomatico(tk.Toplevel):
             self.destroy()
             return
 
-        # Datos
+        # Datos y estado
         self.artists_found: list[dict] = []
         self.songs: list[dict] = []
         self.playlists: list[dict] = []
         self.artist_id: str = ""
+        self.play_var = tk.StringVar(value="nueva")
 
         # Estilos
         style = ttk.Style(self)
         style.theme_use("clam")
-        style.configure("TFrame", background="#191414")
-        style.configure("Header.TLabel", background="#191414", foreground="#1DB954",
-                        font=("Segoe UI",14,"bold"))
-        style.configure("TLabel", background="#191414", foreground="#FFFFFF",
-                        font=("Segoe UI",10))
-        style.configure("TButton", background="#1DB954", foreground="#FFFFFF",
-                        font=("Segoe UI",10,"bold"), padding=6)
-        style.map("TButton", background=[("active","#1ed760")])
-        style.configure("TEntry", fieldbackground="#2a2a2a", foreground="#FFFFFF",
+        style.configure("TFrame", background=cfg.BG_MAIN)
+        style.configure("Header.TLabel",
+                        background=cfg.BG_MAIN,
+                        foreground=cfg.ACCENT,
+                        font=(cfg.FONT_BOLD[0], 14))
+        style.configure("TLabel",
+                        background=cfg.BG_MAIN,
+                        foreground=cfg.TEXT_PRIMARY,
+                        font=cfg.FONT_REGULAR)
+        style.configure("TButton",
+                        background=cfg.ACCENT,
+                        foreground=cfg.TEXT_PRIMARY,
+                        font=cfg.FONT_BOLD,
+                        padding=6)
+        style.map("TButton", background=[("active", cfg.ACCENT_HOVER)])
+        style.configure("TEntry",
+                        fieldbackground=cfg.BG_PANEL,
+                        foreground=cfg.TEXT_PRIMARY,
                         padding=4)
-        style.configure("TRadiobutton", background="#191414", foreground="#FFFFFF",
-                        font=("Segoe UI",10))
+        style.configure("TRadiobutton",
+                        background=cfg.BG_MAIN,
+                        foreground=cfg.TEXT_PRIMARY,
+                        font=cfg.FONT_REGULAR)
 
-        # Contenedor principal
-        main = ttk.Frame(self, style="TFrame", padding=10)
-        main.grid(sticky="nsew")
+        # — Scrollable area setup — #
+        container = ttk.Frame(self, style="TFrame")
+        container.grid(row=0, column=0, sticky="nsew")
+        container.columnconfigure(0, weight=1)
+        container.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(container,
+                           bg=cfg.BG_MAIN,
+                           highlightthickness=0)
+        canvas.grid(row=0, column=0, sticky="nsew")
+
+        vsb = ttk.Scrollbar(container,
+                            orient="vertical",
+                            command=canvas.yview)
+        vsb.grid(row=0, column=1, sticky="ns")
+
+        canvas.configure(yscrollcommand=vsb.set)
+
+        # Frame interno
+        scroll_frame = ttk.Frame(canvas, style="TFrame", padding=10)
+        scroll_window = canvas.create_window((0, 0),
+                                             window=scroll_frame,
+                                             anchor="nw")
+        scroll_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        # Ajusta ancho
+        canvas.bind(
+            "<Configure>",
+            lambda e: canvas.itemconfig(scroll_window, width=e.width)
+        )
+
+        # Scroll con rueda
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # `main` = scroll_frame
+        main = scroll_frame
         main.columnconfigure(0, weight=1)
         main.rowconfigure(5, weight=1)
 
-        # 1) Búsqueda de artista
+        # --- 1) Búsqueda de artista --- #
         ttk.Label(main, text="1) Buscar artista", style="Header.TLabel")\
-            .grid(row=0, column=0, sticky="w")
+            .grid(row=0, column=0, sticky="w", pady=(0,8))
         busc = ttk.Frame(main, style="TFrame")
-        busc.grid(row=1, column=0, sticky="ew", pady=5)
+        busc.grid(row=1, column=0, sticky="ew", pady=(0,12))
         busc.columnconfigure(0, weight=1)
         self.entry_artist = ttk.Entry(busc, style="TEntry")
         self.entry_artist.grid(row=0, column=0, sticky="ew", padx=(0,5))
-        ttk.Button(busc, text="Buscar", command=self.search_artist).grid(row=0, column=1)
+        ttk.Button(busc, text="Buscar", style="TButton",
+                   command=self.search_artist).grid(row=0, column=1)
 
-        self.lb_artists = tk.Listbox(main, bg="#2a2a2a", fg="white",
-                                     selectbackground="#1DB954", height=6, bd=0)
+        self.lb_artists = tk.Listbox(
+            main,
+            bg=cfg.BG_PANEL, fg=cfg.TEXT_PRIMARY,
+            selectbackground=cfg.ACCENT,
+            activestyle="none",
+            highlightthickness=0,
+            relief="flat",
+            height=6
+        )
         self.lb_artists.grid(row=2, column=0, sticky="nsew")
-        sb_art = ttk.Scrollbar(main, orient="vertical", command=self.lb_artists.yview)
+        sb_art = ttk.Scrollbar(main, orient="vertical",
+                               command=self.lb_artists.yview)
         sb_art.grid(row=2, column=1, sticky="ns")
-        self.lb_artists.config(yscrollcommand=sb_art.set)
+        self.lb_artists.configure(yscrollcommand=sb_art.set)
         self.lb_artists.bind("<<ListboxSelect>>", self.on_artist_select)
 
-        # 2) Informe de canciones
-        rpt = ttk.LabelFrame(main, text="Resumen de canciones", style="TFrame", padding=8)
+        # --- 2) Informe de canciones --- #
+        rpt = ttk.LabelFrame(main, text="Resumen de canciones",
+                             style="TFrame", padding=8)
         rpt.grid(row=3, column=0, sticky="ew", pady=10)
         rpt.columnconfigure(0, weight=1)
         self.lbl_report = ttk.Label(rpt, text="No hay datos aún.", style="TLabel")
         self.lbl_report.grid(row=0, column=0, sticky="w")
 
-        # 3) Lista de canciones únicas (altura reducida)
+        # --- 3) Lista de canciones únicas --- #
         songs_f = ttk.LabelFrame(main, text="Canciones únicas encontradas",
-                     style="TFrame", padding=8)
+                                 style="TFrame", padding=8)
         songs_f.grid(row=4, column=0, sticky="nsew", pady=5)
         songs_f.columnconfigure(0, weight=1)
         songs_f.rowconfigure(0, weight=1)
-        # Cambia height=8 a height=4 para hacer la lista más baja
-        self.tree_songs = ttk.Treeview(songs_f, columns=("Name",), show="headings",
-                           selectmode="none", height=4)
+        self.tree_songs = ttk.Treeview(
+            songs_f,
+            columns=("Name",),
+            show="headings",
+            selectmode="none",
+            height=4
+        )
         self.tree_songs.heading("Name", text="Título de canción")
         self.tree_songs.column("Name", anchor="w")
         self.tree_songs.grid(row=0, column=0, sticky="nsew")
-        sb_songs = ttk.Scrollbar(songs_f, orient="vertical", command=self.tree_songs.yview)
+        sb_songs = ttk.Scrollbar(songs_f, orient="vertical",
+                                 command=self.tree_songs.yview)
         sb_songs.grid(row=0, column=1, sticky="ns")
         self.tree_songs.configure(yscrollcommand=sb_songs.set)
 
-        # 4) Generar o actualizar playlist
+        # --- 4) Generar o actualizar playlist --- #
         play_f = ttk.LabelFrame(main, text="Generar o actualizar playlist",
                                 style="TFrame", padding=8)
         play_f.grid(row=5, column=0, sticky="ew", pady=(10,0))
         play_f.columnconfigure(1, weight=1)
-        self.play_var = tk.StringVar(value="nueva")
-        ttk.Radiobutton(play_f, text="Crear nueva", variable=self.play_var,
-                        value="nueva", command=self.update_play_option).grid(row=0, column=0, padx=(0,10))
-        ttk.Radiobutton(play_f, text="Usar existente", variable=self.play_var,
-                        value="existente", command=self.update_play_option).grid(row=0, column=1)
+        ttk.Radiobutton(play_f, text="Crear nueva",
+                        variable=self.play_var, value="nueva",
+                        style="TRadiobutton",
+                        command=self.update_play_option)\
+            .grid(row=0, column=0, padx=(0,10))
+        ttk.Radiobutton(play_f, text="Usar existente",
+                        variable=self.play_var, value="existente",
+                        style="TRadiobutton",
+                        command=self.update_play_option)\
+            .grid(row=0, column=1)
 
         self.dynamic = ttk.Frame(play_f, style="TFrame")
-        self.dynamic.grid(row=1, column=0, columnspan=2, sticky="ew", pady=5)
+        self.dynamic.grid(row=1, column=0, columnspan=2,
+                          sticky="ew", pady=5)
         self.update_play_option()
 
-        # Botones finales
+        # --- Botones finales --- #
         btns = ttk.Frame(main, style="TFrame", padding=5)
         btns.grid(row=6, column=0, sticky="e", pady=(10,0))
-        ttk.Button(btns, text="Reset", command=self.reset_to_artist_search).grid(row=0, column=0, padx=5)
-        ttk.Button(btns, text="Cerrar", command=self.destroy).grid(row=0, column=1)
+        ttk.Button(btns, text="Reset", style="TButton",
+                   command=self.reset_to_artist_search).grid(row=0, column=0, padx=5)
+        ttk.Button(btns, text="Cerrar", style="TButton",
+                   command=self.destroy).grid(row=0, column=1)
 
+    # Métodos de lógica originales intactos:
     def search_artist(self):
         q = self.entry_artist.get().strip()
         if not q:
@@ -140,8 +218,7 @@ class VentanaGestorAutomatico(tk.Toplevel):
         sel = self.lb_artists.curselection()
         if not sel:
             return
-        idx = sel[0]
-        art = self.artists_found[idx]
+        art = self.artists_found[sel[0]]
         if messagebox.askyesno("Confirmar", f"Seleccionaste {art['name']}. ¿Continuar?"):
             self.artist_id = art["id"]
             self.fetch_artist_songs()
@@ -166,12 +243,10 @@ class VentanaGestorAutomatico(tk.Toplevel):
             "remaster", "remastered", "demo", "karaoke", "edit",
             "mix", "remix", "versión", "version", "session"
         )
-        NOISE = (
-            "feat.", "featuring", "ft.", "with", "con"
-        )
+        NOISE = ("feat.", "featuring", "ft.", "with", "con")
         elegido: dict[str, dict] = {}
-        total_raw = 0
         clean_punct = re.compile(r"[()\[\]{}\-–_:]")
+        total_raw = 0
 
         def slug(txt: str) -> str:
             txt = unicodedata.normalize("NFKD", txt).encode("ascii", "ignore").decode()
@@ -193,11 +268,11 @@ class VentanaGestorAutomatico(tk.Toplevel):
                 return
             title = track.get("name", "").strip()
             base = slug(title)
-            alt  = es_alt(title, album_name)
+            alt = es_alt(title, album_name)
             if base not in elegido or (elegido[base]["alt"] and not alt):
                 elegido[base] = {"track": track, "alt": alt}
 
-        # 1) álbumes / singles / compilados
+        # 1) Álbumes / singles / compilados
         try:
             alb_resp = self.sp.artist_albums(
                 artist_id,
@@ -228,7 +303,7 @@ class VentanaGestorAutomatico(tk.Toplevel):
                         break
                     tr_resp = self.sp.next(tr_resp)
 
-        # 2) búsqueda global (singles sueltos / colaboraciones)
+        # 2) Búsqueda global
         try:
             art_name = self.sp.artist(artist_id)["name"]
             offset = 0
@@ -244,12 +319,10 @@ class VentanaGestorAutomatico(tk.Toplevel):
         except Exception:
             pass
 
-        # resultado final
-        canciones = [
+        return [
             {"id": d["track"]["id"], "name": d["track"]["name"]}
             for d in elegido.values()
         ]
-        return canciones
 
     def update_play_option(self):
         for w in self.dynamic.winfo_children():
@@ -259,34 +332,44 @@ class VentanaGestorAutomatico(tk.Toplevel):
                 .grid(row=0, column=0, sticky="w")
             self.new_name = ttk.Entry(self.dynamic, style="TEntry")
             self.new_name.grid(row=0, column=1, sticky="ew", padx=(5,0))
-            ttk.Button(self.dynamic, text="Crear & Agregar",
-                       command=self.crear_playlist_y_agregar_songs).grid(row=1, column=0, columnspan=2, pady=5)
+            ttk.Button(self.dynamic, text="Crear & Agregar", style="TButton",
+                       command=self.crear_playlist_y_agregar_songs)\
+                .grid(row=1, column=0, columnspan=2, pady=5)
         else:
             ttk.Label(self.dynamic, text="Buscar playlist:", style="TLabel")\
                 .grid(row=0, column=0, sticky="w")
             self.search_pl = ttk.Entry(self.dynamic, style="TEntry")
             self.search_pl.grid(row=0, column=1, sticky="ew", padx=(5,0))
             self.search_pl.bind("<KeyRelease>", self.filtrar_playlists)
-            self.pl_list = tk.Listbox(self.dynamic, bg="#2a2a2a", fg="white",
-                                      selectbackground="#1DB954", height=4, bd=0)
+            self.pl_list = tk.Listbox(
+                self.dynamic,
+                bg=cfg.BG_PANEL, fg=cfg.TEXT_PRIMARY,
+                selectbackground=cfg.ACCENT,
+                activestyle="none",
+                highlightthickness=0,
+                relief="flat",
+                height=4
+            )
             self.pl_list.grid(row=1, column=0, columnspan=2, sticky="ew", pady=5)
             self.load_all_playlists()
-            ttk.Button(self.dynamic, text="Actualizar",
+            ttk.Button(self.dynamic, text="Actualizar", style="TButton",
                        command=self.actualizar_playlist_seleccionada)\
                 .grid(row=2, column=0, columnspan=2, pady=5)
 
     def crear_playlist_y_agregar_songs(self):
         name = self.new_name.get().strip()
         if not name:
-            messagebox.showinfo("Info","Ingresa nombre.")
+            messagebox.showinfo("Info", "Ingresa nombre.")
             return
-        pl = self.sp.user_playlist_create(self.user_id, name, public=True,
-                                          description="Playlist generada automáticamente")
+        pl = self.sp.user_playlist_create(
+            self.user_id, name, public=True,
+            description="Playlist generada automáticamente"
+        )
         ids = [s["id"] for s in self.songs]
-        for i in range(0,len(ids),100):
+        for i in range(0, len(ids), 100):
             self.sp.playlist_add_items(pl["id"], ids[i:i+100])
             time.sleep(0.5)
-        messagebox.showinfo("Listo","Playlist creada y canciones agregadas.")
+        messagebox.showinfo("Listo", "Playlist creada y canciones agregadas.")
 
     def load_all_playlists(self):
         self.playlists.clear()
@@ -310,15 +393,18 @@ class VentanaGestorAutomatico(tk.Toplevel):
     def actualizar_playlist_seleccionada(self):
         sel = self.pl_list.curselection()
         if not sel:
-            messagebox.showinfo("Info","Selecciona playlist.")
+            messagebox.showinfo("Info", "Selecciona playlist.")
             return
         pl = self.playlists[sel[0]]
-        existentes = {item["track"]["id"] for item in self.sp.playlist_items(pl["id"])["items"]}
+        existentes = {
+            item["track"]["id"]
+            for item in self.sp.playlist_items(pl["id"])["items"]
+        }
         pendientes = [s["id"] for s in self.songs if s["id"] not in existentes]
-        for i in range(0,len(pendientes),100):
+        for i in range(0, len(pendientes), 100):
             self.sp.playlist_add_items(pl["id"], pendientes[i:i+100])
             time.sleep(0.5)
-        messagebox.showinfo("Listo","Playlist actualizada.")
+        messagebox.showinfo("Listo", "Playlist actualizada.")
 
     def reset_to_artist_search(self):
         self.songs.clear()
