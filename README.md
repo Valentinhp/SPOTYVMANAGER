@@ -30,6 +30,9 @@ SPOTYVMANAGER/
 │ │ ├── search_advanced.py # Ventana de búsqueda avanzada
 │ │ └── top_tracks.py # Ventana de top de canciones
 │
-├── .env
+├── .env.example
 ├── requirements.txt # Dependencias
 └── README.md # Este archivo
+
+## 🚀 Configuración
+Copia el archivo `.env.example` a `.env` y completa tus credenciales de Spotify. El módulo `src/config.py` leerá estas variables automáticamente al iniciar la aplicación.
