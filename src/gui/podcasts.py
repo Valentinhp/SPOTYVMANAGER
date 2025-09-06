@@ -14,26 +14,24 @@ from ..utils.spotify_utils import (
 )
 from ..data_podcasts import data_podcasts  # <-- ahora toma la lista externa
 
-def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Sincronizar Podcasts (data_podcasts)")
-    ven.geometry("520x300")
+def ventana_sincronizar_podcasts_data(parent: tk.Widget, sp=None, **kwargs) -> ttk.Frame:
+    frame = ttk.Frame(parent)
 
-    tk.Label(ven, text="Sincronizando podcasts con sus playlists…",
+    tk.Label(frame, text="Sincronizando podcasts con sus playlists…",
              font=("Arial", 11)).pack(pady=8)
-    prog = ttk.Progressbar(ven, orient="horizontal",
+    prog = ttk.Progressbar(frame, orient="horizontal",
                            length=460, mode="determinate",
                            maximum=len(data_podcasts))
     prog.pack(pady=5)
-    lbl_estado = tk.Label(ven, text="Esperando…", anchor="w")
+    lbl_estado = tk.Label(frame, text="Esperando…", anchor="w")
     lbl_estado.pack(fill=tk.X, padx=10)
-    txt_log = tk.Text(ven, height=8, wrap=tk.WORD)
+    txt_log = tk.Text(frame, height=8, wrap=tk.WORD)
     txt_log.pack(padx=10, pady=6, fill=tk.BOTH, expand=True)
 
     def log(msg: str):
         txt_log.insert(tk.END, msg + "\n")
         txt_log.see(tk.END)
-        ven.update_idletasks()
+        frame.update_idletasks()
 
     def sincronizar():
         total = len(data_podcasts)
@@ -54,7 +52,7 @@ def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
             lbl_estado.config(
                 text=f"{idx}/{total}  {podcast_name} → {playlist_name}"
             )
-            ven.update_idletasks()
+            frame.update_idletasks()
 
             # Obtener episodios y agregarlos
             eps = get_podcast_episodes(sp, pod_id)
@@ -76,5 +74,7 @@ def ventana_sincronizar_podcasts_data(sp: Spotify, root: tk.Tk):
         lbl_estado.config(text="¡Sincronización completa!")
         messagebox.showinfo("Terminado", "Todos los podcasts han sido sincronizados.")
 
-    tk.Button(ven, text="Iniciar sincronización", command=sincronizar) \
+    tk.Button(frame, text="Iniciar sincronización", command=sincronizar) \
         .pack(pady=6)
+    return frame
+

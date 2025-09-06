@@ -183,3 +183,15 @@ def agregar_canciones_a_playlist(sp: Spotify, playlist_id: str, track_ids: list[
         except Exception as e:
             logger.error("Error agregando tracks a playlist: %s", e)
             break
+
+def buscar_artistas(sp: Spotify, query: str) -> List[Tuple[str, str]]:
+    """Busca artistas por nombre."""
+    if not query:
+        return []
+    try:
+        results = sp.search(q=query, type='artist', limit=10)
+        artistas = results.get('artists', {}).get('items', [])
+        return [(a['id'], a['name']) for a in artistas]
+    except Exception as e:
+        logger.error(f"Error al buscar artistas: {e}")
+        return []

@@ -46,14 +46,10 @@ def guardar_asignaciones(asignaciones):
 # ─────────────────────────────────────────────────────────────
 # Ventana de administración pulida
 # ─────────────────────────────────────────────────────────────
-class VentanaAdminPodcasts(tk.Toplevel):
-    def __init__(self, parent, sp: Spotify):
-        super().__init__(parent)
+class VentanaAdminPodcasts(ttk.Frame):
+    def __init__(self, parent, sp=None, **kwargs):
+        super().__init__(parent, **kwargs)
         self.sp = sp
-        self.title("Admin Podcast ↔ Playlist")
-        self.geometry("920x650")
-        self.configure(bg="#191414")
-        self.resizable(True, True)
 
         # cargar datos
         self.asignaciones = cargar_asignaciones()

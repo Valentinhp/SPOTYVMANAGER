@@ -8,17 +8,15 @@ from tkinter import ttk, messagebox
 from spotipy import Spotify
 import random
 
-def ventana_artistapy(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Recomendaciones #Artistapy")
-    ven.geometry("620x540")
+def ventana_artistapy(parent: tk.Widget, sp=None, **kwargs) -> ttk.Frame:
+    frame = ttk.Frame(parent)
 
-    tk.Label(ven, text="Géneros favoritos (separados por coma):", font=("Arial", 11)).pack(pady=8)
-    entry_gen = tk.Entry(ven, width=60)
+    tk.Label(frame, text="Géneros favoritos (separados por coma):", font=("Arial", 11)).pack(pady=8)
+    entry_gen = tk.Entry(frame, width=60)
     entry_gen.insert(0, "Hip Hop Latino, Indie Mexicano, Trap Mexa")
     entry_gen.pack(pady=5)
 
-    text_area = tk.Text(ven, wrap=tk.WORD, width=75, height=20)
+    text_area = tk.Text(frame, wrap=tk.WORD, width=75, height=20)
     text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
     def generar_playlist():
@@ -62,4 +60,5 @@ def ventana_artistapy(sp: Spotify, root: tk.Tk):
             text_area.insert(tk.END, f"\n\n✅ Playlist «{pl_name}» creada con {len(uris)} canciones.")
         except Exception as e:
             text_area.insert(tk.END, f"\n\n[ERROR] Al crear/llenar la playlist: {e}\nVerifica que tu token incluya el scope «playlist-modify-private».")
-    tk.Button(ven, text="Generar playlist", command=generar_playlist).pack(pady=8)
+    tk.Button(frame, text="Generar playlist", command=generar_playlist).pack(pady=8)
+    return frame

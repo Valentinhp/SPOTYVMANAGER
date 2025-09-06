@@ -12,14 +12,10 @@ import time
 import unicodedata
 import re
 
-class VentanaGestorAutomatico(tk.Toplevel):
-    def __init__(self, parent: tk.Tk, sp: Spotify):
-        super().__init__(parent)
+class VentanaGestorAutomatico(ttk.Frame):
+    def __init__(self, parent, sp=None, **kwargs):
+        super().__init__(parent, **kwargs)
         self.sp = sp
-        self.title("Gestor de Playlists Automáticas")
-        self.geometry("800x750")
-        self.configure(bg="#191414")
-        self.minsize(700,650)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -60,8 +56,7 @@ class VentanaGestorAutomatico(tk.Toplevel):
         main.rowconfigure(5, weight=1)
 
         # 1) Búsqueda de artista
-        ttk.Label(main, text="1) Buscar artista", style="Header.TLabel")\
-            .grid(row=0, column=0, sticky="w")
+        ttk.Label(main, text="1) Buscar artista", style="Header.TLabel")    .grid(row=0, column=0, sticky="w")
         busc = ttk.Frame(main, style="TFrame")
         busc.grid(row=1, column=0, sticky="ew", pady=5)
         busc.columnconfigure(0, weight=1)

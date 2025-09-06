@@ -8,33 +8,31 @@ from tkinter import ttk, messagebox, simpledialog
 from spotipy import Spotify
 import time
 
-def ventana_top_tracks(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Top Tracks Mejorado")
-    ven.geometry("450x550")
+def ventana_top_tracks(parent: tk.Widget, sp=None, **kwargs) -> ttk.Frame:
+    frame = ttk.Frame(parent)
 
-    tk.Label(ven, text="Artista:").pack(pady=(10,0))
-    e_art = tk.Entry(ven, width=40); e_art.pack(pady=5)
+    tk.Label(frame, text="Artista:").pack(pady=(10,0))
+    e_art = tk.Entry(frame, width=40); e_art.pack(pady=5)
 
-    tk.Label(ven, text="Cuántos tracks (1–50):").pack(pady=(5,0))
-    e_num = tk.Entry(ven, width=5); e_num.insert(0, "10"); e_num.pack(pady=5)
+    tk.Label(frame, text="Cuántos tracks (1–50):").pack(pady=(5,0))
+    e_num = tk.Entry(frame, width=5); e_num.insert(0, "10"); e_num.pack(pady=5)
 
-    tk.Label(ven, text="Popularidad mínima (0–100):").pack(pady=(5,0))
-    e_pop = tk.Entry(ven, width=5); e_pop.insert(0, "0"); e_pop.pack(pady=5)
+    tk.Label(frame, text="Popularidad mínima (0–100):").pack(pady=(5,0))
+    e_pop = tk.Entry(frame, width=5); e_pop.insert(0, "0"); e_pop.pack(pady=5)
 
-    tk.Label(ven, text="Colaboraciones:").pack(pady=(5,0))
+    tk.Label(frame, text="Colaboraciones:").pack(pady=(5,0))
     coll_var = tk.StringVar(value="Todas")
     for val, txt in [("Todas","Todas"), ("Solo","Solo artista"), ("Colab","Solo colaboraciones")]:
-        tk.Radiobutton(ven, text=txt, variable=coll_var, value=val).pack(anchor="w", padx=20)
+        tk.Radiobutton(frame, text=txt, variable=coll_var, value=val).pack(anchor="w", padx=20)
 
-    tk.Label(ven, text="Géneros secundarios (sep. coma):").pack(pady=(5,0))
-    e_gen = tk.Entry(ven, width=40); e_gen.pack(pady=5)
+    tk.Label(frame, text="Géneros secundarios (sep. coma):").pack(pady=(5,0))
+    e_gen = tk.Entry(frame, width=40); e_gen.pack(pady=5)
 
-    tk.Label(ven, text="Ordenar por:").pack(pady=(5,0))
+    tk.Label(frame, text="Ordenar por:").pack(pady=(5,0))
     order_var = tk.StringVar(value="Popularidad")
-    tk.OptionMenu(ven, order_var, "Popularidad", "Nombre", "Fecha").pack(pady=5)
+    tk.OptionMenu(frame, order_var, "Popularidad", "Nombre", "Fecha").pack(pady=5)
 
-    text_area = tk.Text(ven, height=12, wrap="word"); text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+    text_area = tk.Text(frame, height=12, wrap="word"); text_area.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
     def buscar_y_mostrar():
         text_area.delete("1.0", tk.END)
@@ -107,8 +105,8 @@ def ventana_top_tracks(sp: Spotify, root: tk.Tk):
         filt = []
         for t in uniq:
             if t["popularity"]<min_pop: continue
-            if coll_opt=="Solo" and len(t["artists"])>1: continue
-            if coll_opt=="Colab" and len(t["artists"])<2: continue
+            if coll_opt=="Solo" and len(t["artists"]) > 1: continue
+            if coll_opt=="Colab" and len(t["artists"]) < 2: continue
             if secs and not any(any(s in g for g in genres.get(a["id"],[])) for s in secs for a in t["artists"]):
                 continue
             filt.append(t)
@@ -118,7 +116,7 @@ def ventana_top_tracks(sp: Spotify, root: tk.Tk):
         rev = order_var.get() in ["Popularidad","Fecha"]
         filt.sort(key=keymap[order_var.get()], reverse=rev)
         resultados = filt[:n]
-        ven.uris = [t["uri"] for t in resultados]
+        frame.uris = [t["uri"] for t in resultados]
 
         text_area.insert("end", f"Mostrando {len(resultados)} de {art['name']}:\n\n")
         for i,t in enumerate(resultados,1):
@@ -126,7 +124,7 @@ def ventana_top_tracks(sp: Spotify, root: tk.Tk):
             text_area.insert("end", f"{i}. {t['name']} — {artistas} (pop {t['popularity']})\n")
 
     def crear_playlist_top():
-        uris = getattr(ven, "uris", [])
+        uris = getattr(frame, "uris", [])
         if not uris:
             messagebox.showinfo("Info","Primero busca las canciones.")
             return
@@ -137,10 +135,11 @@ def ventana_top_tracks(sp: Spotify, root: tk.Tk):
             pl = sp.user_playlist_create(uid, pl_name, public=True)
             sp.playlist_add_items(pl["id"], uris)
             messagebox.showinfo("¡Listo!","Playlist creada.")
-            ven.destroy()
         except Exception as e:
             messagebox.showerror("Error",f"No pude crear la playlist:\n{e}")
 
-    btns = tk.Frame(ven); btns.pack(pady=5)
+    btns = tk.Frame(frame); btns.pack(pady=5)
     tk.Button(btns, text="Buscar", command=buscar_y_mostrar).pack(side="left", padx=5)
     tk.Button(btns, text="Crear Playlist", command=crear_playlist_top).pack(side="left", padx=5)
+    return frame
+
