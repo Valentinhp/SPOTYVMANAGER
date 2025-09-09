@@ -21,7 +21,7 @@ data_podcasts = [
      {"podcast": "0rGBS35ThfPEPj7lDfbNcW", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
     {"podcast": "3VQwgOUOa4JoO6UWiVBPHa", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
     {"podcast": "6OFdeY2O9ZgS4ZKgcX7iZN", "playlist": "2zazPQz8WjHVFgOS2ENBGQ"},
+    {"podcast": "1xe2GlU89VmBVMjuVOSygV", "playlist": "0xyNNaj4v28RoUQfKad2Mi"}
 
 
-
-]
+    ]

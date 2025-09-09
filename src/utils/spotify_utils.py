@@ -152,13 +152,50 @@ def obtener_podcasts_guardados(sp: Spotify):
     return podcasts
 
 
-def obtener_canciones_artista(sp: Spotify, artista_id: str):
-    try:
-        resp = sp.artist_top_tracks(artista_id)
-        return [t["id"] for t in resp["tracks"]]
-    except Exception as e:
-        logger.error("Error al obtener top tracks de %s: %s", artista_id, e)
-        return []
+def obtener_canciones_artista(sp: Spotify, artista_id: str) -> List[str]:
+    """Obtiene todos los IDs de las canciones de un artista (álbumes y sencillos)."""
+    track_ids: Set[str] = set()
+    
+    # Obtener todos los álbumes del artista
+    albums = []
+    albums_offset, albums_limit = 0, 50
+    while True:
+        try:
+            resp = sp.artist_albums(artista_id, album_type='album,single', limit=albums_limit, offset=albums_offset)
+            if resp and resp.get('items'):
+                albums.extend(resp['items'])
+                if resp.get('next'):
+                    albums_offset += albums_limit
+                else:
+                    break
+            else:
+                break
+        except Exception as e:
+            logger.error(f"Error obteniendo álbumes de {artista_id}: {e}")
+            break
+
+    # Obtener todas las canciones de cada álbum
+    for album in albums:
+        album_id = album['id']
+        tracks_offset, tracks_limit = 0, 50
+        while True:
+            try:
+                resp = sp.album_tracks(album_id, limit=tracks_limit, offset=tracks_offset)
+                if resp and resp.get('items'):
+                    for track in resp['items']:
+                        if track and track.get('id'):
+                            track_ids.add(track['id'])
+                    if resp.get('next'):
+                        tracks_offset += tracks_limit
+                    else:
+                        break
+                else:
+                    break
+            except Exception as e:
+                logger.error(f"Error obteniendo canciones de {album_id}: {e}")
+                break
+                
+    return list(track_ids)
 
 
 def obtener_episodios_podcast_sencillo(sp: Spotify, podcast_id: str):
@@ -183,3 +220,15 @@ def agregar_canciones_a_playlist(sp: Spotify, playlist_id: str, track_ids: list[
         except Exception as e:
             logger.error("Error agregando tracks a playlist: %s", e)
             break
+
+def buscar_artistas(sp: Spotify, query: str) -> List[Tuple[str, str]]:
+    """Busca artistas por nombre."""
+    if not query:
+        return []
+    try:
+        results = sp.search(q=query, type='artist', limit=10)
+        artistas = results.get('artists', {}).get('items', [])
+        return [(a['id'], a['name']) for a in artistas]
+    except Exception as e:
+        logger.error(f"Error al buscar artistas: {e}")
+        return []

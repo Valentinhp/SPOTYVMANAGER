@@ -1,20 +1,14 @@
 # src/gui/playlists.py
 """
-Ventanas relacionadas con Playlists:
-* Ver playlists
-* Crear playlist
-* Contenido de playlist
-* Agregar artista/podcast a playlist
-* Eliminar playlists
-* Vaciar playlists
+Frames relacionados con Playlists.
 """
 from __future__ import annotations
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 from spotipy import Spotify
 from ..utils.spotify_utils import (
     obtener_playlists_usuario,
-    crear_playlist,
+    crear_playlist as api_crear_playlist,
     obtener_contenido_playlist,
     eliminar_items_playlist,
     obtener_canciones_artista,
@@ -22,164 +16,72 @@ from ..utils.spotify_utils import (
     agregar_canciones_a_playlist,
 )
 
-def ventana_ver_playlists(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Ver Playlists")
-    ven.geometry("600x400")
-
+def ventana_ver_playlists(parent: ttk.Frame, sp: Spotify) -> ttk.Frame:
+    frame = ttk.Frame(parent, padding=10)
+    
     cols = ("ID", "Nombre", "Tracks")
-    tree = ttk.Treeview(ven, columns=cols, show="headings")
+    tree = ttk.Treeview(frame, columns=cols, show="headings")
     for c in cols:
         tree.heading(c, text=c)
     tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-    scroll = ttk.Scrollbar(ven, orient="vertical", command=tree.yview)
+    scroll = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
     tree.configure(yscrollcommand=scroll.set)
     scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
     for pid, nom, tot in obtener_playlists_usuario(sp):
         tree.insert("", tk.END, values=(pid, nom, tot))
+        
+    return frame
 
-def ventana_crear_playlist(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Crear Playlist")
-    ven.geometry("300x150")
+def ventana_crear_playlist(parent: ttk.Frame, sp: Spotify) -> ttk.Frame:
+    frame = ttk.Frame(parent, padding=20)
+    frame.columnconfigure(0, weight=1)
 
-    tk.Label(ven, text="Nombre de la Playlist:").pack(pady=5)
-    entry = tk.Entry(ven, width=30)
-    entry.pack(pady=5)
+    ttk.Label(frame, text="Nombre de la Playlist:").pack(pady=5)
+    entry = ttk.Entry(frame, width=40)
+    entry.pack(pady=5, fill="x", expand=True)
 
     def crear():
         nombre = entry.get().strip()
         if not nombre:
             messagebox.showwarning("Atención", "Ingresa un nombre")
             return
-        pid = crear_playlist(sp, nombre)
-        messagebox.showinfo("Completado", f"Playlist creada con ID: {pid}")
-        ven.destroy()
+        try:
+            pid = api_crear_playlist(sp, nombre)
+            messagebox.showinfo("Completado", f"Playlist creada con ID: {pid}")
+            # Podríamos querer cambiar de frame o refrescar algo aquí
+            entry.delete(0, tk.END)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo crear la playlist: {e}")
 
-    tk.Button(ven, text="Crear", command=crear).pack(pady=5)
+    ttk.Button(frame, text="Crear", command=crear).pack(pady=10)
+    return frame
 
-def ventana_contenido_playlist(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Contenido de Playlist")
-    ven.geometry("650x450")
+def ventana_eliminar_playlists(parent: ttk.Frame, sp: Spotify) -> ttk.Frame:
+    frame = ttk.Frame(parent, padding=10)
+    frame.rowconfigure(1, weight=1)
+    frame.columnconfigure(0, weight=1)
 
-    tk.Label(ven, text="ID de la playlist:").pack(pady=5)
-    entry_pid = tk.Entry(ven, width=40)
-    entry_pid.pack()
-
-    frame_tbl = ttk.Frame(ven)
-    frame_tbl.pack(fill=tk.BOTH, expand=True)
-
-    cols = ("TrackID", "Título", "Artista/Show")
-    tree = ttk.Treeview(frame_tbl, columns=cols, show="headings")
-    for c in cols:
-        tree.heading(c, text=c)
-    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-    scroll = ttk.Scrollbar(frame_tbl, orient="vertical", command=tree.yview)
-    tree.configure(yscrollcommand=scroll.set)
-    scroll.pack(side=tk.RIGHT, fill=tk.Y)
-
-    def cargar():
-        tree.delete(*tree.get_children())
-        pid = entry_pid.get().strip()
-        if not pid:
-            messagebox.showwarning("Atención", "Debes ingresar el ID de la playlist.")
-            return
-        for tid, nom, art in obtener_contenido_playlist(sp, pid):
-            tree.insert("", tk.END, values=(tid, nom, art))
-
-    def eliminar_sel():
-        pid = entry_pid.get().strip()
-        if not pid:
-            messagebox.showwarning("Atención", "Ingresa el ID primero.")
-            return
-        sel = tree.selection()
-        if not sel:
-            messagebox.showwarning("Atención", "No seleccionaste nada.")
-            return
-        uris = []
-        for s in sel:
-            tid = tree.item(s, "values")[0]
-            uris += [f"spotify:track:{tid}", f"spotify:episode:{tid}"]
-        eliminar_items_playlist(sp, pid, uris)
-        cargar()
-
-    frame_btns = tk.Frame(ven)
-    frame_btns.pack(pady=5)
-    tk.Button(frame_btns, text="Cargar Contenido", command=cargar).pack(side=tk.LEFT, padx=5)
-    tk.Button(frame_btns, text="Eliminar Seleccionados", command=eliminar_sel).pack(side=tk.LEFT, padx=5)
-
-def ventana_agregar_artista_podcast(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Agregar Artista o Podcast a Playlist")
-    ven.geometry("500x300")
-
-    tk.Label(ven, text="ID de la Playlist destino:").pack(pady=5)
-    entry_pl = tk.Entry(ven, width=40)
-    entry_pl.pack()
-
-    tk.Label(ven, text="ID de Artista (opcional):").pack(pady=5)
-    entry_art = tk.Entry(ven, width=40)
-    entry_art.pack()
-
-    tk.Label(ven, text="ID de Podcast (opcional):").pack(pady=5)
-    entry_pod = tk.Entry(ven, width=40)
-    entry_pod.pack()
-
-    def agregar():
-        pid = entry_pl.get().strip()
-        if not pid:
-            messagebox.showwarning("Atención", "Falta el ID de la Playlist.")
-            return
-        aid = entry_art.get().strip()
-        podid = entry_pod.get().strip()
-        if aid:
-            tracks = obtener_canciones_artista(sp, aid)
-            if not tracks:
-                messagebox.showwarning("Info", "No hay tracks para ese artista.")
-                return
-            agregar_canciones_a_playlist(sp, pid, tracks)
-            messagebox.showinfo("Éxito", "Agregadas top tracks del artista.")
-        elif podid:
-            eps = obtener_episodios_podcast_sencillo(sp, podid)
-            if not eps:
-                messagebox.showwarning("Info", "No se encontraron episodios.")
-                return
-            from ..utils.spotify_utils import add_episodes_to_playlist as _add_eps
-            _add_eps(sp, pid, [f"spotify:episode:{e}" for e in eps])
-            messagebox.showinfo("Éxito", "Agregados episodios del podcast.")
-        else:
-            messagebox.showinfo("Atención", "No pusiste Artista ni Podcast.")
-
-    tk.Button(ven, text="Agregar", command=agregar).pack(pady=10)
-
-def ventana_eliminar_playlists(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Eliminar Playlists")
-    ven.geometry("420x500")
-
-    tk.Label(ven, text="Buscar playlists:", font=("Arial", 11)).pack(pady=(10, 0))
-    entry_buscar = tk.Entry(ven, width=40)
-    entry_buscar.pack(pady=(0, 8))
+    ttk.Label(frame, text="Buscar playlists:", font=("Arial", 11)).pack(pady=(10, 0))
+    entry_buscar = ttk.Entry(frame, width=50)
+    entry_buscar.pack(pady=(0, 8), fill="x")
 
     pls = obtener_playlists_usuario(sp)
     filtered_pls = list(pls)
 
-    frame = tk.Frame(ven)
-    frame.pack(fill=tk.BOTH, expand=True, padx=10)
-    listbox = tk.Listbox(frame, selectmode=tk.MULTIPLE)
+    list_frame = ttk.Frame(frame)
+    list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+    listbox = tk.Listbox(list_frame, selectmode=tk.MULTIPLE, bg="#2a2a2a", fg="white", selectbackground="#1DB954")
     listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    scroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=listbox.yview)
+    scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=listbox.yview)
     scroll.pack(side=tk.RIGHT, fill=tk.Y)
     listbox.config(yscrollcommand=scroll.set)
 
     def refrescar():
         listbox.delete(0, tk.END)
         for pid, nombre, _ in filtered_pls:
-            listbox.insert(tk.END, f"{nombre}  ({pid[:8]}…)")
+            listbox.insert(tk.END, f"{nombre}  ({pid[:12]}…)")
 
     def filtrar(_evt):
         term = entry_buscar.get().strip().lower()
@@ -207,38 +109,44 @@ def ventana_eliminar_playlists(sp: Spotify, root: tk.Tk):
                 sp.current_user_unfollow_playlist(pid)
             except Exception as e:
                 errores.append(f"{nombre}: {e}")
+        
         if errores:
             messagebox.showerror("Errores", "Algunas no se pudieron eliminar:\n" + "\n".join(errores))
         else:
             messagebox.showinfo("¡Listo!", "Las playlists seleccionadas han sido eliminadas.")
-        ven.destroy()
+        
+        # Refrescar la lista original y la vista
+        nonlocal pls
+        pls = obtener_playlists_usuario(sp)
+        filtrar(None)
 
-    tk.Button(ven, text="Eliminar seleccionadas", command=confirmar_elim).pack(pady=10)
+    ttk.Button(frame, text="Eliminar seleccionadas", command=confirmar_elim).pack(pady=10)
+    return frame
 
-def ventana_vaciar_playlists(sp: Spotify, root: tk.Tk):
-    ven = tk.Toplevel(root)
-    ven.title("Vaciar Playlists")
-    ven.geometry("420x500")
+def ventana_vaciar_playlists(parent: ttk.Frame, sp: Spotify) -> ttk.Frame:
+    frame = ttk.Frame(parent, padding=10)
+    frame.rowconfigure(1, weight=1)
+    frame.columnconfigure(0, weight=1)
 
-    tk.Label(ven, text="Buscar playlists:", font=("Arial", 11)).pack(pady=(10, 0))
-    entry_buscar = tk.Entry(ven, width=40)
-    entry_buscar.pack(pady=(0, 8))
+    ttk.Label(frame, text="Buscar playlists:", font=("Arial", 11)).pack(pady=(10, 0))
+    entry_buscar = ttk.Entry(frame, width=50)
+    entry_buscar.pack(pady=(0, 8), fill="x")
 
     todas = obtener_playlists_usuario(sp)
     mostradas = list(todas)
 
-    frame = tk.Frame(ven)
-    frame.pack(fill=tk.BOTH, expand=True, padx=10)
-    listbox = tk.Listbox(frame, selectmode=tk.MULTIPLE)
+    list_frame = ttk.Frame(frame)
+    list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+    listbox = tk.Listbox(list_frame, selectmode=tk.MULTIPLE, bg="#2a2a2a", fg="white", selectbackground="#1DB954")
     listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-    scroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=listbox.yview)
+    scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=listbox.yview)
     scroll.pack(side=tk.RIGHT, fill=tk.Y)
     listbox.config(yscrollcommand=scroll.set)
 
     def refrescar():
         listbox.delete(0, tk.END)
         for pid, nombre, _ in mostradas:
-            listbox.insert(tk.END, f"{nombre}  ({pid[:8]}…)")
+            listbox.insert(tk.END, f"{nombre}  ({pid[:12]}…)")
 
     def filtrar(_evt):
         texto = entry_buscar.get().strip().lower()
@@ -270,6 +178,6 @@ def ventana_vaciar_playlists(sp: Spotify, root: tk.Tk):
             messagebox.showerror("Errores", "Errores al vaciar:\n" + "\n".join(errores))
         else:
             messagebox.showinfo("¡Hecho!", "Las playlists seleccionadas han quedado vacías.")
-        ven.destroy()
 
-    tk.Button(ven, text="Vaciar seleccionadas", command=confirmar_vaciado).pack(pady=10)
+    ttk.Button(frame, text="Vaciar seleccionadas", command=confirmar_vaciado).pack(pady=10)
+    return frame
